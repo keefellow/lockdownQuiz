@@ -1,13 +1,18 @@
+<!-- =====================================================
+INDEX.HTML
+===================================================== -->
+
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Offline Science Quiz</title>
+<title>Offline Exam PWA</title>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<link rel="manifest" href="manifest.json">
 
 <style>
 
@@ -24,10 +29,6 @@ body{
 
 .active{
     display:block;
-}
-
-h1,h2{
-    text-align:center;
 }
 
 button{
@@ -47,38 +48,23 @@ button{
     margin-top:10px;
     border-radius:10px;
     border:2px solid #ddd;
-    cursor:pointer;
 }
 
 .selected{
-    border:2px solid #2563eb;
     background:#dbeafe;
+    border:2px solid #2563eb;
 }
 
 #timer{
-    text-align:center;
-    color:red;
     font-size:24px;
+    color:red;
+    text-align:center;
     margin-bottom:20px;
-}
-
-#qrcode{
-    text-align:center;
-    margin-top:20px;
-}
-
-.small{
-    text-align:center;
-    color:#666;
-    font-size:14px;
 }
 
 textarea{
     width:100%;
     height:120px;
-    padding:10px;
-    font-size:16px;
-    border-radius:10px;
 }
 
 </style>
@@ -91,18 +77,19 @@ textarea{
 
 <div id="homeScreen" class="screen active">
 
-    <h1>Offline Science Quiz</h1>
+    <h1>Offline Exam</h1>
 
-    <textarea id="unlockInput"
-placeholder="Paste unlock code here"></textarea>
+    <input id="examCode"
+           placeholder="Enter Exam Code"
+           style="width:100%;padding:15px;font-size:18px;">
 
-    <button onclick="unlockExam()">
-        Unlock Exam
+    <button onclick="downloadExam()">
+        Download Exam
     </button>
 
-    <div class="small">
-        Paste teacher unlock code
-    </div>
+    <button onclick="startExam()">
+        Start Offline Exam
+    </button>
 
 </div>
 
@@ -117,176 +104,134 @@ placeholder="Paste unlock code here"></textarea>
     <div id="optionsContainer"></div>
 
     <button onclick="nextQuestion()">
-        Next Question
+        Next
     </button>
 
 </div>
 
-<!-- RESULT -->
+<!-- FINISH -->
 
-<div id="resultScreen" class="screen">
+<div id="finishScreen" class="screen">
 
-    <h1>Exam Completed</h1>
+    <h1>Exam Finished</h1>
 
     <h2 id="scoreText"></h2>
 
-    <div id="qrcode"></div>
+    <button onclick="uploadResults()">
+        Upload Results
+    </button>
 
-    <div class="small">
-        Teacher scans this QR
-    </div>
+    <textarea id="logBox"></textarea>
 
 </div>
 
 <script>
 
-//////////////////////////////////////////////////////////
-// EXAM DATA
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+// SERVICE WORKER
+/////////////////////////////////////////////////////////
 
-const examText = `Science Quiz~
-What gas do plants absorb during photosynthesis?|Oxygen|Nitrogen|Carbon Dioxide|Hydrogen|2;
-Which organ pumps blood throughout the human body?|Lungs|Brain|Heart|Liver|2;
-What is the boiling point of water at sea level?|90C|95C|100C|120C|2;
-Which planet is known as the Red Planet?|Earth|Venus|Mars|Jupiter|2;
-What force keeps objects attracted to Earth?|Magnetism|Gravity|Electricity|Friction|1;
-Which part of the plant conducts photosynthesis?|Root|Stem|Leaf|Flower|2;
-What is the largest mammal on Earth?|Elephant|Blue Whale|Giraffe|Shark|1;
-Which gas do humans need to breathe to survive?|Nitrogen|Oxygen|Carbon Dioxide|Helium|1;
-What is the center of an atom called?|Electron|Nucleus|Proton|Shell|1;
-Which planet is closest to the Sun?|Earth|Mercury|Mars|Saturn|1;
-What is the process of water changing into vapor called?|Melting|Condensation|Evaporation|Freezing|2;
-Which blood vessels carry blood away from the heart?|Veins|Capillaries|Arteries|Nerves|2;
-Which scientist proposed the theory of gravity after observing a falling apple?|Newton|Einstein|Tesla|Darwin|0;
-What is the main source of energy for Earth?|Moon|Sun|Wind|Volcanoes|1;
-Which material is attracted to magnets?|Plastic|Wood|Iron|Glass|2;
-What is the chemical symbol for water?|WO|H2O|O2|HO|1;
-Which organ helps humans breathe?|Heart|Lungs|Kidney|Skin|1;
-What is the nearest star to Earth?|Mars|Moon|Sun|Venus|2;
-Which state of matter has a fixed shape and volume?|Gas|Liquid|Solid|Plasma|2;
-What do bees collect from flowers?|Pollen|Sand|Water|Stone|0;
-Which planet has visible rings around it?|Earth|Mars|Saturn|Mercury|2;
-What is the freezing point of water?|0C|10C|50C|100C|0;
-Which part of the body contains the brain?|Chest|Arm|Head|Leg|2;
-What gas is released during photosynthesis?|Hydrogen|Carbon Dioxide|Oxygen|Nitrogen|2;
-Which force slows moving objects?|Gravity|Friction|Magnetism|Light|1;
-What is the hardest natural substance?|Gold|Iron|Diamond|Silver|2;
-Which organ filters waste from blood?|Heart|Liver|Kidney|Lungs|2;
-What type of energy comes from moving air?|Solar|Wind|Chemical|Nuclear|1;
-What is the outer layer of Earth called?|Mantle|Core|Crust|Shell|2;
-Which planet is the largest in the solar system?|Earth|Saturn|Jupiter|Mars|2;
-What do humans exhale after breathing?|Oxygen|Nitrogen|Carbon Dioxide|Helium|2;
-Which simple machine includes a wheel and axle?|Lever|Pulley|Wheelbarrow|Ramp|2;
-What part of the cell contains genetic material?|Membrane|Nucleus|Cytoplasm|Wall|1;
-Which vitamin is mainly obtained from sunlight?|Vitamin A|Vitamin B|Vitamin C|Vitamin D|3;
-What is the natural satellite of Earth?|Mars|Moon|Sun|Venus|1;
-Which process turns liquid water into ice?|Evaporation|Freezing|Melting|Boiling|1;
-What do we call animals that eat only plants?|Carnivores|Omnivores|Herbivores|Predators|2;
-Which instrument is used to measure temperature?|Thermometer|Barometer|Compass|Scale|0;
-What protects Earth from harmful ultraviolet rays?|Clouds|Ozone Layer|Mountains|Rain|1;
-Which part of the digestive system absorbs most nutrients?|Stomach|Small Intestine|Liver|Esophagus|1`;
+if("serviceWorker" in navigator){
 
-//////////////////////////////////////////////////////////
+    navigator.serviceWorker.register("sw.js");
+
+}
+
+/////////////////////////////////////////////////////////
+// GOOGLE SCRIPT URL
+/////////////////////////////////////////////////////////
+
+const API_URL =
+"https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+
+/////////////////////////////////////////////////////////
 // VARIABLES
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
-let paper = null;
+let exam = null;
 
 let currentQuestion = 0;
 
-let selectedAnswer = null;
-
 let score = 0;
 
-let studentAnswers = [];
+let selectedAnswer = null;
 
-let timeLeft = 1800;
+let answers = [];
+
+let logs = [];
+
+let timeLeft = 0;
 
 let timerInterval = null;
 
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 // SCREEN CONTROL
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
 function showScreen(id){
 
-    document.querySelectorAll('.screen').forEach(s=>{
+    document.querySelectorAll(".screen")
+    .forEach(s=>{
 
-        s.classList.remove('active');
+        s.classList.remove("active");
 
     });
 
-    document.getElementById(id).classList.add('active');
+    document.getElementById(id)
+    .classList.add("active");
 }
 
-//////////////////////////////////////////////////////////
-// UNLOCK
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+// DOWNLOAD EXAM
+/////////////////////////////////////////////////////////
 
-function unlockExam(){
+async function downloadExam(){
 
-    const code =
-        document.getElementById("unlockInput")
-        .value
-        .trim();
+    const examCode =
+        document.getElementById("examCode").value;
 
-    if(code !== "SCIENCE2026"){
+    const response =
+        await fetch(
+            API_URL + "?mode=getExam&examId=" + examCode
+        );
 
-        alert("Wrong unlock code");
+    const data = await response.json();
+
+    localStorage.setItem(
+        "ACTIVE_EXAM",
+        JSON.stringify(data)
+    );
+
+    alert("Exam downloaded");
+}
+
+/////////////////////////////////////////////////////////
+// START EXAM
+/////////////////////////////////////////////////////////
+
+function startExam(){
+
+    const stored =
+        localStorage.getItem("ACTIVE_EXAM");
+
+    if(!stored){
+
+        alert("No exam downloaded");
 
         return;
     }
 
-    parseExam(examText);
-}
-
-//////////////////////////////////////////////////////////
-// PARSE EXAM
-//////////////////////////////////////////////////////////
-
-function parseExam(text){
-
-    const parts = text.split("~");
-
-    const title = parts[0];
-
-    const rawQuestions = parts[1].split(";");
-
-    paper = {
-
-        title:title,
-
-        questions:[]
-    };
-
-    rawQuestions.forEach(q=>{
-
-        if(q.trim() === "") return;
-
-        const fields = q.split("|");
-
-        paper.questions.push({
-
-            q: fields[0],
-
-            options:[
-                fields[1],
-                fields[2],
-                fields[3],
-                fields[4]
-            ],
-
-            answer: parseInt(fields[5])
-
-        });
-
-    });
+    exam = JSON.parse(stored);
 
     currentQuestion = 0;
 
     score = 0;
 
-    studentAnswers = [];
+    answers = [];
+
+    logs = [];
+
+    timeLeft = exam.duration;
 
     startTimer();
 
@@ -295,18 +240,21 @@ function parseExam(text){
     renderQuestion();
 }
 
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 // RENDER QUESTION
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
 function renderQuestion(){
 
     selectedAnswer = null;
 
-    const q = paper.questions[currentQuestion];
+    const q = exam.questions[currentQuestion];
 
-    document.getElementById("questionText").innerText =
-        (currentQuestion + 1) + ". " + q.q;
+    document.getElementById("questionText")
+    .innerText =
+        (currentQuestion + 1)
+        + ". "
+        + q.question;
 
     const container =
         document.getElementById("optionsContainer");
@@ -315,7 +263,8 @@ function renderQuestion(){
 
     q.options.forEach((opt,index)=>{
 
-        const div = document.createElement("div");
+        const div =
+            document.createElement("div");
 
         div.className = "option";
 
@@ -323,13 +272,14 @@ function renderQuestion(){
 
         div.onclick = ()=>{
 
-            document.querySelectorAll('.option').forEach(o=>{
+            document.querySelectorAll(".option")
+            .forEach(o=>{
 
-                o.classList.remove('selected');
+                o.classList.remove("selected");
 
             });
 
-            div.classList.add('selected');
+            div.classList.add("selected");
 
             selectedAnswer = index;
         };
@@ -339,22 +289,22 @@ function renderQuestion(){
     });
 }
 
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 // NEXT QUESTION
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
 function nextQuestion(){
 
     if(selectedAnswer === null){
 
-        alert("Select an answer");
+        alert("Select answer");
 
         return;
     }
 
-    const q = paper.questions[currentQuestion];
+    const q = exam.questions[currentQuestion];
 
-    studentAnswers.push(selectedAnswer);
+    answers.push(selectedAnswer);
 
     if(selectedAnswer === q.answer){
 
@@ -363,7 +313,9 @@ function nextQuestion(){
 
     currentQuestion++;
 
-    if(currentQuestion >= paper.questions.length){
+    autosave();
+
+    if(currentQuestion >= exam.questions.length){
 
         finishExam();
 
@@ -373,9 +325,9 @@ function nextQuestion(){
     }
 }
 
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 // TIMER
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
 function startTimer(){
 
@@ -390,6 +342,7 @@ function startTimer(){
         if(timeLeft <= 0){
 
             finishExam();
+
         }
 
     },1000);
@@ -397,55 +350,140 @@ function startTimer(){
 
 function updateTimer(){
 
-    const mins = Math.floor(timeLeft / 60);
+    const mins =
+        Math.floor(timeLeft / 60);
 
-    const secs = timeLeft % 60;
+    const secs =
+        timeLeft % 60;
 
-    document.getElementById("timer").innerText =
-        mins + ":" + String(secs).padStart(2,'0');
+    document.getElementById("timer")
+    .innerText =
+        mins + ":" +
+        String(secs).padStart(2,"0");
 }
 
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+// AUTOSAVE
+/////////////////////////////////////////////////////////
+
+function autosave(){
+
+    localStorage.setItem(
+        "EXAM_PROGRESS",
+        JSON.stringify({
+            answers,
+            currentQuestion,
+            score,
+            logs
+        })
+    );
+}
+
+/////////////////////////////////////////////////////////
+// LOGGING
+/////////////////////////////////////////////////////////
+
+document.addEventListener(
+    "visibilitychange",
+    ()=>{
+
+        if(document.hidden){
+
+            logs.push({
+                event:"HIDDEN",
+                time:Date.now()
+            });
+
+        }else{
+
+            logs.push({
+                event:"VISIBLE",
+                time:Date.now()
+            });
+
+        }
+
+        autosave();
+    }
+);
+
+window.addEventListener(
+    "online",
+    ()=>{
+
+        logs.push({
+            event:"ONLINE_DETECTED",
+            time:Date.now()
+        });
+
+        autosave();
+    }
+);
+
+window.addEventListener(
+    "offline",
+    ()=>{
+
+        logs.push({
+            event:"OFFLINE",
+            time:Date.now()
+        });
+
+        autosave();
+    }
+);
+
+/////////////////////////////////////////////////////////
 // FINISH
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
 function finishExam(){
 
     clearInterval(timerInterval);
 
-    showScreen("resultScreen");
+    showScreen("finishScreen");
 
-    document.getElementById("scoreText").innerText =
-        "Score: " + score + " / " + paper.questions.length;
+    document.getElementById("scoreText")
+    .innerText =
+        "Score: "
+        + score
+        + " / "
+        + exam.questions.length;
 
-    generateResultQR();
+    document.getElementById("logBox")
+    .value =
+        JSON.stringify(logs,null,2);
 }
 
-//////////////////////////////////////////////////////////
-// RESULT QR
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+// UPLOAD RESULTS
+/////////////////////////////////////////////////////////
 
-function generateResultQR(){
+async function uploadResults(){
 
-    const resultText =
-        "STUDENT01|" +
-        score + "|" +
-        studentAnswers.join(",");
+    const payload = {
 
-    document.getElementById("qrcode").innerHTML = "";
+        student:"STUDENT01",
 
-    QRCode.toCanvas(resultText,
+        examId:exam.examId,
 
-    {
-        width:250
-    },
+        score:score,
 
-    function(err,canvas){
+        answers:answers,
 
-        document.getElementById("qrcode")
-            .appendChild(canvas);
+        logs:logs
+
+    };
+
+    await fetch(API_URL,{
+
+        method:"POST",
+
+        body:JSON.stringify(payload)
 
     });
+
+    alert("Results uploaded");
 }
 
 </script>
