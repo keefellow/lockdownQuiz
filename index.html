@@ -1,19 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Offline QR Exam</title>
+<title>Encrypted Offline Exam</title>
 
+<!-- QR Scanner -->
 <script src="https://unpkg.com/html5-qrcode"></script>
+
+<!-- QR Generator -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+<!-- AES Encryption -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
 <style>
 
 body{
-    font-family:Arial;
     margin:0;
+    font-family:Arial;
     background:#f2f2f2;
 }
 
@@ -61,14 +68,14 @@ button{
 
 #timer{
     text-align:center;
-    font-size:24px;
     color:red;
+    font-size:24px;
     margin-bottom:20px;
 }
 
 #qrcode{
-    margin-top:20px;
     text-align:center;
+    margin-top:20px;
 }
 
 .small{
@@ -87,14 +94,14 @@ button{
 
 <div id="homeScreen" class="screen active">
 
-    <h1>Offline Exam</h1>
+    <h1>Encrypted Offline Exam</h1>
 
     <button onclick="startScanner()">
-        Scan Exam QR
+        Scan Unlock QR
     </button>
 
     <div class="small">
-        Scan teacher QR to load exam
+        Questions are encrypted locally
     </div>
 
 </div>
@@ -103,7 +110,7 @@ button{
 
 <div id="scanScreen" class="screen">
 
-    <h2>Scan Exam QR</h2>
+    <h2>Scan Teacher QR</h2>
 
     <div id="reader"></div>
 
@@ -136,26 +143,42 @@ button{
     <div id="qrcode"></div>
 
     <div class="small">
-        Teacher scans this QR
+        Teacher scans this result QR
     </div>
 
 </div>
 
 <script>
 
+//////////////////////////////////////////////////////
+// ENCRYPTED QUESTION BANK
+//////////////////////////////////////////////////////
+
+const encryptedBank = `
+U2FsdGVkX19j5Lk2E1X4WzXvA7GvD7lN8z1g5WmK8xT4nTg4nJ2Vn3lP8hW8vJ4KQWn2rJg9nWm0j2k9Qx9zL3Q4M9V6b8y0xA==
+`;
+
+//////////////////////////////////////////////////////
+// VARIABLES
+//////////////////////////////////////////////////////
+
 let paper = null;
 
 let currentQuestion = 0;
 
-let selectedAnswer = null;
-
 let score = 0;
+
+let selectedAnswer = null;
 
 let studentAnswers = [];
 
 let timeLeft = 300;
 
 let timerInterval = null;
+
+//////////////////////////////////////////////////////
+// SCREEN CONTROL
+//////////////////////////////////////////////////////
 
 function showScreen(id){
 
@@ -168,6 +191,10 @@ function showScreen(id){
     document.getElementById(id).classList.add('active');
 }
 
+//////////////////////////////////////////////////////
+// START QR SCAN
+//////////////////////////////////////////////////////
+
 function startScanner(){
 
     showScreen("scanScreen");
@@ -175,7 +202,8 @@ function startScanner(){
     const scanner = new Html5Qrcode("reader");
 
     scanner.start(
-        { facingMode: "environment" },
+        { facingMode:"environment" },
+
         {
             fps:10,
             qrbox:250
@@ -185,73 +213,126 @@ function startScanner(){
 
             scanner.stop();
 
-            loadPaper(decodedText);
+            processUnlockQR(decodedText);
 
         }
     );
 }
 
-function loadPaper(text){
+//////////////////////////////////////////////////////
+// PROCESS UNLOCK QR
+//////////////////////////////////////////////////////
+
+function processUnlockQR(qrText){
+
+    // Expected format:
+    // EXAM01|password123
+
+    const parts = qrText.split("|");
+
+    const examId = parts[0];
+
+    const key = parts[1];
+
+    decryptExam(key);
+}
+
+//////////////////////////////////////////////////////
+// DECRYPT EXAM
+//////////////////////////////////////////////////////
+
+function decryptExam(key){
 
     try{
 
-        const parts = text.split("~");
+        const decrypted = CryptoJS.AES.decrypt(
+            encryptedBank,
+            key
+        ).toString(CryptoJS.enc.Utf8);
 
-        const title = parts[0];
+        if(!decrypted){
 
-        const rawQuestions = parts[1].split(";");
+            alert("Wrong key");
 
-        paper = {
+            showScreen("homeScreen");
 
-            title:title,
+            return;
+        }
 
-            questions:[]
-        };
-
-        rawQuestions.forEach(q=>{
-
-            if(q.trim() === "") return;
-
-            const fields = q.split("|");
-
-            paper.questions.push({
-
-                q: fields[0],
-
-                options:[
-                    fields[1],
-                    fields[2],
-                    fields[3],
-                    fields[4]
-                ],
-
-                answer: parseInt(fields[5])
-
-            });
-
-        });
-
-        currentQuestion = 0;
-
-        score = 0;
-
-        studentAnswers = [];
-
-        startTimer();
-
-        showScreen("examScreen");
-
-        renderQuestion();
+        parseExam(decrypted);
 
     }catch(err){
 
-        alert("Invalid QR format");
+        alert("Decryption failed");
 
         console.log(err);
 
         showScreen("homeScreen");
     }
 }
+
+//////////////////////////////////////////////////////
+// PARSE EXAM TEXT
+//////////////////////////////////////////////////////
+
+function parseExam(text){
+
+    // Format:
+    // Title~
+    // Question|A|B|C|D|answer;
+
+    const parts = text.split("~");
+
+    const title = parts[0];
+
+    const rawQuestions = parts[1].split(";");
+
+    paper = {
+
+        title:title,
+
+        questions:[]
+    };
+
+    rawQuestions.forEach(q=>{
+
+        if(q.trim() === "") return;
+
+        const fields = q.split("|");
+
+        paper.questions.push({
+
+            q: fields[0],
+
+            options:[
+                fields[1],
+                fields[2],
+                fields[3],
+                fields[4]
+            ],
+
+            answer: parseInt(fields[5])
+
+        });
+
+    });
+
+    currentQuestion = 0;
+
+    score = 0;
+
+    studentAnswers = [];
+
+    startTimer();
+
+    showScreen("examScreen");
+
+    renderQuestion();
+}
+
+//////////////////////////////////////////////////////
+// SHOW QUESTION
+//////////////////////////////////////////////////////
 
 function renderQuestion(){
 
@@ -293,6 +374,10 @@ function renderQuestion(){
     });
 }
 
+//////////////////////////////////////////////////////
+// NEXT QUESTION
+//////////////////////////////////////////////////////
+
 function nextQuestion(){
 
     if(selectedAnswer === null){
@@ -323,6 +408,10 @@ function nextQuestion(){
     }
 }
 
+//////////////////////////////////////////////////////
+// TIMER
+//////////////////////////////////////////////////////
+
 function startTimer(){
 
     updateTimer();
@@ -351,6 +440,10 @@ function updateTimer(){
         mins + ":" + String(secs).padStart(2,'0');
 }
 
+//////////////////////////////////////////////////////
+// FINISH EXAM
+//////////////////////////////////////////////////////
+
 function finishExam(){
 
     clearInterval(timerInterval);
@@ -362,6 +455,10 @@ function finishExam(){
 
     generateResultQR();
 }
+
+//////////////////////////////////////////////////////
+// GENERATE RESULT QR
+//////////////////////////////////////////////////////
 
 function generateResultQR(){
 
@@ -385,6 +482,27 @@ function generateResultQR(){
 
     });
 }
+
+//////////////////////////////////////////////////////
+// SAMPLE ENCRYPTION HELPER
+//////////////////////////////////////////////////////
+
+// Run in browser console once:
+//
+// const exam =
+// "Science Quiz~" +
+// "What is H2O?|Water|Salt|Fire|Metal|0;" +
+// "Closest planet?|Earth|Mars|Mercury|Venus|2;";
+//
+// CryptoJS.AES.encrypt(exam,"password123").toString()
+//
+// Paste encrypted result into encryptedBank
+//
+// Teacher QR:
+//
+// EXAM01|password123
+
+//////////////////////////////////////////////////////
 
 </script>
 
