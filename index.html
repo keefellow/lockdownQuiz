@@ -1,324 +1,389 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Offline QR Exam</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline QR Exam</title>
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
-  <!-- QR -->
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<style>
 
-  <style>
-    body{
-      font-family: Arial;
-      margin:0;
-      padding:0;
-      background:#f3f4f6;
-    }
+body{
+    font-family:Arial;
+    margin:0;
+    background:#f2f2f2;
+}
 
-    .screen{
-      display:none;
-      padding:20px;
-    }
+.screen{
+    display:none;
+    padding:20px;
+}
 
-    .active{
-      display:block;
-    }
+.active{
+    display:block;
+}
 
-    h1,h2{
-      text-align:center;
-    }
+h1,h2{
+    text-align:center;
+}
 
-    button{
-      width:100%;
-      padding:15px;
-      margin-top:10px;
-      border:none;
-      border-radius:10px;
-      font-size:18px;
-      background:#2563eb;
-      color:white;
-    }
+button{
+    width:100%;
+    padding:15px;
+    margin-top:15px;
+    border:none;
+    border-radius:10px;
+    background:#2563eb;
+    color:white;
+    font-size:18px;
+}
 
-    .option{
-      background:white;
-      padding:15px;
-      margin-top:10px;
-      border-radius:10px;
-      border:2px solid #ddd;
-      cursor:pointer;
-    }
+#reader{
+    width:100%;
+}
 
-    .selected{
-      border:2px solid #2563eb;
-      background:#dbeafe;
-    }
+.option{
+    background:white;
+    padding:15px;
+    margin-top:10px;
+    border-radius:10px;
+    border:2px solid #ddd;
+    cursor:pointer;
+}
 
-    #reader{
-      width:100%;
-    }
+.selected{
+    border:2px solid #2563eb;
+    background:#dbeafe;
+}
 
-    #qrcode{
-      text-align:center;
-      margin-top:20px;
-    }
+#timer{
+    text-align:center;
+    font-size:24px;
+    color:red;
+    margin-bottom:20px;
+}
 
-    #timer{
-      font-size:22px;
-      text-align:center;
-      margin-bottom:20px;
-      color:red;
-    }
-  </style>
+#qrcode{
+    margin-top:20px;
+    text-align:center;
+}
+
+.small{
+    text-align:center;
+    color:#666;
+    font-size:14px;
+}
+
+</style>
+
 </head>
 
 <body>
 
 <!-- HOME -->
+
 <div id="homeScreen" class="screen active">
 
-  <h1>Offline Exam</h1>
+    <h1>Offline Exam</h1>
 
-  <button onclick="startScanner()">
-    Scan Exam QR
-  </button>
+    <button onclick="startScanner()">
+        Scan Exam QR
+    </button>
+
+    <div class="small">
+        Scan teacher QR to load exam
+    </div>
 
 </div>
 
-<!-- QR SCAN -->
+<!-- SCAN -->
+
 <div id="scanScreen" class="screen">
 
-  <h2>Scan Question QR</h2>
+    <h2>Scan Exam QR</h2>
 
-  <div id="reader"></div>
+    <div id="reader"></div>
 
 </div>
 
 <!-- EXAM -->
+
 <div id="examScreen" class="screen">
 
-  <div id="timer"></div>
+    <div id="timer"></div>
 
-  <h2 id="questionText"></h2>
+    <h2 id="questionText"></h2>
 
-  <div id="optionsContainer"></div>
+    <div id="optionsContainer"></div>
 
-  <button onclick="nextQuestion()">
-    Next
-  </button>
+    <button onclick="nextQuestion()">
+        Next Question
+    </button>
 
 </div>
 
 <!-- RESULT -->
+
 <div id="resultScreen" class="screen">
 
-  <h1>Exam Completed</h1>
+    <h1>Exam Completed</h1>
 
-  <h2 id="scoreText"></h2>
+    <h2 id="scoreText"></h2>
 
-  <div id="qrcode"></div>
+    <div id="qrcode"></div>
+
+    <div class="small">
+        Teacher scans this QR
+    </div>
 
 </div>
 
 <script>
 
 let paper = null;
+
 let currentQuestion = 0;
-let score = 0;
+
 let selectedAnswer = null;
+
+let score = 0;
+
 let studentAnswers = [];
 
-let timeLeft = 600;
-let timerInterval;
+let timeLeft = 300;
+
+let timerInterval = null;
 
 function showScreen(id){
 
-  document.querySelectorAll('.screen').forEach(s=>{
-    s.classList.remove('active');
-  });
+    document.querySelectorAll('.screen').forEach(s=>{
 
-  document.getElementById(id).classList.add('active');
+        s.classList.remove('active');
+
+    });
+
+    document.getElementById(id).classList.add('active');
 }
 
 function startScanner(){
 
-  showScreen("scanScreen");
+    showScreen("scanScreen");
 
-  const scanner = new Html5Qrcode("reader");
+    const scanner = new Html5Qrcode("reader");
 
-  scanner.start(
-    { facingMode: "environment" },
-    {
-      fps:10,
-      qrbox:250
-    },
-    (decodedText)=>{
+    scanner.start(
+        { facingMode: "environment" },
+        {
+            fps:10,
+            qrbox:250
+        },
 
-      scanner.stop();
+        (decodedText)=>{
 
-      loadPaper(decodedText);
+            scanner.stop();
 
-    }
-  );
+            loadPaper(decodedText);
+
+        }
+    );
 }
 
-function loadPaper(jsonText){
+function loadPaper(text){
 
-  paper = JSON.parse(jsonText);
+    try{
 
-  currentQuestion = 0;
-  score = 0;
-  studentAnswers = [];
+        const parts = text.split("~");
 
-  startTimer();
+        const title = parts[0];
 
-  showScreen("examScreen");
+        const rawQuestions = parts[1].split(";");
 
-  renderQuestion();
+        paper = {
+
+            title:title,
+
+            questions:[]
+        };
+
+        rawQuestions.forEach(q=>{
+
+            if(q.trim() === "") return;
+
+            const fields = q.split("|");
+
+            paper.questions.push({
+
+                q: fields[0],
+
+                options:[
+                    fields[1],
+                    fields[2],
+                    fields[3],
+                    fields[4]
+                ],
+
+                answer: parseInt(fields[5])
+
+            });
+
+        });
+
+        currentQuestion = 0;
+
+        score = 0;
+
+        studentAnswers = [];
+
+        startTimer();
+
+        showScreen("examScreen");
+
+        renderQuestion();
+
+    }catch(err){
+
+        alert("Invalid QR format");
+
+        console.log(err);
+
+        showScreen("homeScreen");
+    }
 }
 
 function renderQuestion(){
 
-  selectedAnswer = null;
+    selectedAnswer = null;
 
-  const q = paper.questions[currentQuestion];
+    const q = paper.questions[currentQuestion];
 
-  document.getElementById("questionText").innerText =
-    (currentQuestion + 1) + ". " + q.q;
+    document.getElementById("questionText").innerText =
+        (currentQuestion + 1) + ". " + q.q;
 
-  const container =
-    document.getElementById("optionsContainer");
+    const container =
+        document.getElementById("optionsContainer");
 
-  container.innerHTML = "";
+    container.innerHTML = "";
 
-  q.options.forEach((opt,index)=>{
+    q.options.forEach((opt,index)=>{
 
-    const div = document.createElement("div");
+        const div = document.createElement("div");
 
-    div.className = "option";
+        div.className = "option";
 
-    div.innerText = opt;
+        div.innerText = opt;
 
-    div.onclick = ()=>{
+        div.onclick = ()=>{
 
-      document.querySelectorAll('.option')
-        .forEach(o=>o.classList.remove('selected'));
+            document.querySelectorAll('.option').forEach(o=>{
 
-      div.classList.add('selected');
+                o.classList.remove('selected');
 
-      selectedAnswer = index;
+            });
 
-    };
+            div.classList.add('selected');
 
-    container.appendChild(div);
+            selectedAnswer = index;
+        };
 
-  });
+        container.appendChild(div);
+
+    });
 }
 
 function nextQuestion(){
 
-  if(selectedAnswer === null){
+    if(selectedAnswer === null){
 
-    alert("Select an answer");
+        alert("Select an answer");
 
-    return;
-  }
+        return;
+    }
 
-  const q = paper.questions[currentQuestion];
+    const q = paper.questions[currentQuestion];
 
-  studentAnswers.push(selectedAnswer);
+    studentAnswers.push(selectedAnswer);
 
-  if(selectedAnswer === q.answer){
+    if(selectedAnswer === q.answer){
 
-    score++;
+        score++;
+    }
 
-  }
+    currentQuestion++;
 
-  currentQuestion++;
+    if(currentQuestion >= paper.questions.length){
 
-  if(currentQuestion >= paper.questions.length){
+        finishExam();
 
-    finishExam();
+    }else{
 
-  }else{
-
-    renderQuestion();
-
-  }
+        renderQuestion();
+    }
 }
 
 function startTimer(){
 
-  updateTimer();
-
-  timerInterval = setInterval(()=>{
-
-    timeLeft--;
-
     updateTimer();
 
-    if(timeLeft <= 0){
+    timerInterval = setInterval(()=>{
 
-      finishExam();
+        timeLeft--;
 
-    }
+        updateTimer();
 
-  },1000);
+        if(timeLeft <= 0){
+
+            finishExam();
+        }
+
+    },1000);
 }
 
 function updateTimer(){
 
-  const mins =
-    Math.floor(timeLeft / 60);
+    const mins = Math.floor(timeLeft / 60);
 
-  const secs =
-    timeLeft % 60;
+    const secs = timeLeft % 60;
 
-  document.getElementById("timer").innerText =
-    mins + ":" + String(secs).padStart(2,'0');
+    document.getElementById("timer").innerText =
+        mins + ":" + String(secs).padStart(2,'0');
 }
 
 function finishExam(){
 
-  clearInterval(timerInterval);
+    clearInterval(timerInterval);
 
-  showScreen("resultScreen");
+    showScreen("resultScreen");
 
-  document.getElementById("scoreText").innerText =
-    "Score: " + score + " / " + paper.questions.length;
+    document.getElementById("scoreText").innerText =
+        "Score: " + score + " / " + paper.questions.length;
 
-  generateResultQR();
+    generateResultQR();
 }
 
 function generateResultQR(){
 
-  const result = {
+    const resultText =
+        "STUDENT01|" +
+        score + "|" +
+        studentAnswers.join(",");
 
-    student:"STUDENT01",
+    document.getElementById("qrcode").innerHTML = "";
 
-    score:score,
+    QRCode.toCanvas(resultText,
 
-    total:paper.questions.length,
+    {
+        width:250
+    },
 
-    answers:studentAnswers
+    function(err,canvas){
 
-  };
+        document.getElementById("qrcode")
+            .appendChild(canvas);
 
-  const resultText = JSON.stringify(result);
-
-  document.getElementById("qrcode").innerHTML = "";
-
-  QRCode.toCanvas(resultText, { width:250 }, function (err, canvas) {
-
-    document.getElementById("qrcode")
-      .appendChild(canvas);
-
-  });
+    });
 }
 
 </script>
